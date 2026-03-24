@@ -67,7 +67,7 @@ def start(message):
                      "Botdan foydalanish uchun kanalga obuna bo‘ling",
                      reply_markup=markup)
 
-# CHECK
+# CHECK SUB
 @bot.callback_query_handler(func=lambda call: call.data=="check_subs")
 def check(call):
     if check_subscriptions(call.from_user.id):
@@ -78,10 +78,11 @@ def check(call):
             markup.add("👑 Admin panel")
 
         bot.send_message(call.message.chat.id,
-                         "✅ Obuna tasdiqlandi!\nKod yoki nom yozing",
+                         "✅ Obuna tasdiqlandi!\n\nKino kodi yoki nomini yozing",
                          reply_markup=markup)
     else:
-        bot.send_message(call.message.chat.id,"❌ Obuna bo‘ling!")
+        bot.send_message(call.message.chat.id,
+                         "❌ Avval kanalga obuna bo‘ling!")
 
 # KATALOG
 @bot.message_handler(func=lambda message: message.text=="🎬 Kino katalog")
@@ -94,7 +95,7 @@ def catalog(message):
 # QIDIRISH
 @bot.message_handler(func=lambda message: message.text.startswith("🔎"))
 def search(message):
-    query = message.text.replace("🔎","").strip().lower()
+    query = message.text[1:].strip().lower()
     result = ""
     for code, info in MOVIES.items():
         if query in info['name'].lower():
@@ -105,23 +106,21 @@ def search(message):
     else:
         bot.send_message(message.chat.id, "❌ Topilmadi")
 
-# 🎬 KINO YUBORISH (MUHIM O‘ZGARISH)
+# KINO YUBORISH
 @bot.message_handler(func=lambda message: message.text.isdigit())
 def send_movie(message):
     if not check_subscriptions(message.from_user.id):
-        bot.send_message(message.chat.id,"❌ Obuna bo‘ling")
+        bot.send_message(message.chat.id,"❌ Avval obuna bo‘ling")
         return
 
     code = message.text
 
     if code in MOVIES:
-        bot.copy_message(   # 🔥 forward o‘rniga copy
-            message.chat.id,
-            KINOBUZA_CHANNEL_ID,
-            MOVIES[code]["post"]
-        )
+        bot.forward_message(message.chat.id,
+                            KINOBUZA_CHANNEL_ID,
+                            MOVIES[code]["post"])
     else:
-        bot.send_message(message.chat.id,"❌ Kod topilmadi")
+        bot.send_message(message.chat.id,"❌ Bunday kod yo‘q")
 
 # ADMIN PANEL
 @bot.message_handler(func=lambda message: message.text=="👑 Admin panel")
@@ -133,9 +132,9 @@ def admin_panel(message):
     markup.add("➕ Kino qo‘shish", "❌ Kino o‘chirish")
     markup.add("📊 Statistika", "📢 Reklama")
 
-    bot.send_message(message.chat.id,"👑 Admin panel",reply_markup=markup)
+    bot.send_message(message.chat.id, "👑 Admin panel", reply_markup=markup)
 
-# ➕ KINO QO‘SHISH
+# ⭐ FIX QILINDI KINO QO‘SHISH
 ADD_STATE = {}
 
 @bot.message_handler(func=lambda message: message.text=="➕ Kino qo‘shish")
@@ -144,7 +143,7 @@ def add_movie(message):
         return
 
     ADD_STATE[message.from_user.id] = True
-    bot.send_message(message.chat.id,"📥 Kanal postini FORWARD qiling")
+    bot.send_message(message.chat.id, "📥 Kanal postini forward qiling")
 
 @bot.message_handler(content_types=['video','document','photo'])
 def get_movie(message):
@@ -167,11 +166,12 @@ def get_movie(message):
     }
 
     save_movies()
+
     del ADD_STATE[message.from_user.id]
 
     bot.send_message(message.chat.id,f"✅ Qo‘shildi\nKod: {code}")
 
-# ❌ O‘CHIRISH
+# O‘CHIRISH
 @bot.message_handler(func=lambda message: message.text=="❌ Kino o‘chirish")
 def delete_movie(message):
     if message.from_user.id != ADMIN_ID:
@@ -194,9 +194,9 @@ def stat(message):
     if message.from_user.id != ADMIN_ID:
         return
 
-    bot.send_message(message.chat.id,f"👥 {len(USERS)} ta user")
+    bot.send_message(message.chat.id,f"👥 {len(USERS)} ta foydalanuvchi")
 
-# 📢 REKLAMA
+# REKLAMA
 @bot.message_handler(func=lambda message: message.text=="📢 Reklama")
 def reklama(message):
     if message.from_user.id != ADMIN_ID:
