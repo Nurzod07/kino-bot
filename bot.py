@@ -18,7 +18,6 @@ KINOBUZA_CHANNEL_ID = -1002671537915
 MOVIES_FILE = "movies.json"
 USERS_FILE = "users.json"
 
-# Load
 if os.path.exists(MOVIES_FILE):
     with open(MOVIES_FILE, "r") as f:
         MOVIES = json.load(f)
@@ -49,7 +48,6 @@ def check_subscriptions(user_id):
             return False
     return True
 
-# START
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id not in USERS:
@@ -73,13 +71,13 @@ def start(message):
                      "Kanallarga obuna bo‘ling:",
                      reply_markup=markup)
 
-# CHECK
 @bot.callback_query_handler(func=lambda call: call.data=="check_subs")
 def check(call):
     if check_subscriptions(call.from_user.id):
 
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("🎬 Kino katalog")
+
         if call.from_user.id == ADMIN_ID:
             markup.add("👑 Admin panel")
 
@@ -87,30 +85,23 @@ def check(call):
                          "✅ Tasdiqlandi\nKod yuboring",
                          reply_markup=markup)
     else:
-        bot.send_message(call.message.chat.id,
-                         "❌ Obuna bo‘ling")
+        bot.send_message(call.message.chat.id,"❌ Obuna bo‘ling")
 
-# 🎬 KINO YUBORISH (MUHIM)
+# 🎬 Kino yuborish
 @bot.message_handler(func=lambda message: message.text.isdigit())
 def send_movie(message):
-    try:
-        code = message.text
+    code = message.text
 
-        if code in MOVIES:
+    if code in MOVIES:
+        bot.copy_message(
+            message.chat.id,
+            KINOBUZA_CHANNEL_ID,
+            MOVIES[code]
+        )
+    else:
+        bot.send_message(message.chat.id, "❌ Kod topilmadi")
 
-            bot.copy_message(
-                message.chat.id,
-                KINOBUZA_CHANNEL_ID,
-                MOVIES[code]
-            )
-
-        else:
-            bot.send_message(message.chat.id, "❌ Kod topilmadi")
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"Xato: {e}")
-
-# ➕ KINO QO‘SHISH (ENG ISHONCHLI)
+# ➕ Kino qo‘shish
 @bot.message_handler(commands=['add'])
 def add_movie(message):
 
@@ -119,7 +110,7 @@ def add_movie(message):
 
     if not message.reply_to_message:
         bot.send_message(message.chat.id,
-            "❗ Kino postiga reply qilib /add yozing")
+            "❗ Postga reply qilib /add yozing")
         return
 
     msg = message.reply_to_message
@@ -137,16 +128,27 @@ def add_movie(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"Xato: {e}")
 
-# 👑 ADMIN PANEL
-@bot.message_handler(func=lambda message: message.text=="👑 Admin panel")
-def admin_panel(message):
+# ❌ Kino o‘chirish
+@bot.message_handler(commands=['del'])
+def delete_movie(message):
+
     if message.from_user.id != ADMIN_ID:
         return
 
-    bot.send_message(message.chat.id,
-        "➕ Kino qo‘shish:\nPostga reply qilib /add yoz")
+    try:
+        code = message.text.split()[1]
 
-# 📊 STAT
+        if code in MOVIES:
+            del MOVIES[code]
+            save_movies()
+            bot.send_message(message.chat.id, "❌ Kino o‘chirildi")
+        else:
+            bot.send_message(message.chat.id, "❌ Bunday kod yo‘q")
+
+    except:
+        bot.send_message(message.chat.id, "Misol: /del 1")
+
+# 📊 Stat
 @bot.message_handler(commands=['stat'])
 def stat(message):
     if message.from_user.id != ADMIN_ID:
