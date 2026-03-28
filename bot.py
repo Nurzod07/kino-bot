@@ -17,6 +17,7 @@ KINOBUZA_CHANNEL_ID = -1002671537915
 MOVIES_FILE = "movies.json"
 USERS_FILE = "users.json"
 
+# 📂 Fayllar
 if os.path.exists(MOVIES_FILE):
     with open(MOVIES_FILE, "r") as f:
         MOVIES = json.load(f)
@@ -37,6 +38,7 @@ def save_users():
     with open(USERS_FILE, "w") as f:
         json.dump(USERS, f)
 
+# 🔎 Obuna tekshiruv
 def check_subscriptions(user_id):
     for ch in REQUIRED_CHANNELS:
         try:
@@ -47,8 +49,10 @@ def check_subscriptions(user_id):
             return False
     return True
 
+# ▶️ START
 @bot.message_handler(commands=['start'])
 def start(message):
+
     if message.from_user.id not in USERS:
         USERS.append(message.from_user.id)
         save_users()
@@ -66,12 +70,16 @@ def start(message):
         callback_data="check_subs"
     ))
 
-    bot.send_message(message.chat.id,
-                     "Kanallarga obuna bo‘ling:",
-                     reply_markup=markup)
+    bot.send_message(
+        message.chat.id,
+        "📢 Botdan foydalanish uchun kanallarga obuna bo‘ling:",
+        reply_markup=markup
+    )
 
+# ✅ TASDIQLASH
 @bot.callback_query_handler(func=lambda call: call.data=="check_subs")
 def check(call):
+
     if check_subscriptions(call.from_user.id):
 
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -80,15 +88,42 @@ def check(call):
         if call.from_user.id == ADMIN_ID:
             markup.add("👑 Admin panel")
 
-        bot.send_message(call.message.chat.id,
-                         "✅ Tasdiqlandi\nKod yuboring",
-                         reply_markup=markup)
+        bot.send_message(
+            call.message.chat.id,
+            "✅ Tasdiqlandi!\n\n🎬 Kino kodini yuboring",
+            reply_markup=markup
+        )
     else:
-        bot.send_message(call.message.chat.id,"❌ Obuna bo‘ling")
+        bot.send_message(call.message.chat.id,"❌ Avval obuna bo‘ling!")
 
-# 🎬 Kino yuborish
+# 🎬 KINO YUBORISH (FIX)
 @bot.message_handler(func=lambda message: message.text.isdigit())
 def send_movie(message):
+
+    # 🔒 OBUNA TEKSHIRUV
+    if not check_subscriptions(message.from_user.id):
+
+        markup = types.InlineKeyboardMarkup()
+
+        for ch in REQUIRED_CHANNELS:
+            markup.add(types.InlineKeyboardButton(
+                text=f"📢 {ch}",
+                url=f"https://t.me/{ch[1:]}"
+            ))
+
+        markup.add(types.InlineKeyboardButton(
+            text="✅ Tasdiqlash",
+            callback_data="check_subs"
+        ))
+
+        bot.send_message(
+            message.chat.id,
+            "❌ Avval kanallarga obuna bo‘ling!",
+            reply_markup=markup
+        )
+        return
+
+    # ✅ KINO YUBORISH
     code = message.text
 
     if code in MOVIES:
@@ -98,9 +133,9 @@ def send_movie(message):
             MOVIES[code]
         )
     else:
-        bot.send_message(message.chat.id, "❌ Kod topilmadi")
+        bot.send_message(message.chat.id, "❌ Bunday kod yo‘q")
 
-# ➕ Kino qo‘shish
+# ➕ KINO QO‘SHISH
 @bot.message_handler(commands=['add'])
 def add_movie(message):
 
@@ -127,7 +162,7 @@ def add_movie(message):
     except Exception as e:
         bot.send_message(message.chat.id, f"Xato: {e}")
 
-# ❌ Kino o‘chirish
+# ❌ KINO O‘CHIRISH
 @bot.message_handler(commands=['del'])
 def delete_movie(message):
 
@@ -147,14 +182,21 @@ def delete_movie(message):
     except:
         bot.send_message(message.chat.id, "Misol: /del 1")
 
-# 📊 Stat
+# 📊 STATISTIKA
 @bot.message_handler(commands=['stat'])
 def stat(message):
+
     if message.from_user.id != ADMIN_ID:
         return
 
-    bot.send_message(message.chat.id,
-        f"👥 {len(USERS)} ta user")
+    bot.send_message(
+        message.chat.id,
+        f"""📊 STATISTIKA
 
-print("🤖 Ishlayapti...")
+👥 Foydalanuvchilar: {len(USERS)} ta
+🎬 Kinolar: {len(MOVIES)} ta
+"""
+    )
+
+print("🤖 Bot ishlayapti...")
 bot.infinity_polling()
