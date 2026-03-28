@@ -9,7 +9,8 @@ bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726
 
 REQUIRED_CHANNELS = [
-    "@telefon_reklama_xizmati"
+    "@telefon_reklama_xizmati",
+      "@piimaenglish_edu"
 ]
 
 KINOBUZA_CHANNEL_ID = -1002671537915
