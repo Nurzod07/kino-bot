@@ -30,6 +30,7 @@ REQUIRED_CHANNELS = [
     "@piimaenglish_edu"
 ]
 
+# Kanalingiz ID si to'g'ri ekanligini yana bir bor tekshiring
 KINOBUZA_CHANNEL_ID = -1002671537915
 
 MOVIES_FILE = "movies.json"
@@ -109,7 +110,7 @@ def check(call):
     else:
         bot.answer_callback_query(call.id, "❌ Avval obuna bo‘ling!", show_alert=True)
 
-# 🎬 KINO YUBORISH
+# 🎬 KINO YUBORISH (Tugirlangan qism)
 @bot.message_handler(func=lambda message: message.text.isdigit())
 def send_movie(message):
     if not check_subscriptions(message.from_user.id):
@@ -122,11 +123,19 @@ def send_movie(message):
 
     code = message.text
     if code in MOVIES:
-        bot.copy_message(message.chat.id, KINOBUZA_CHANNEL_ID, MOVIES[code])
+        try:
+            # Bot kanaldan kinoni nusxalab foydalanuvchiga yuboradi
+            bot.copy_message(
+                chat_id=message.chat.id, 
+                from_chat_id=KINOBUZA_CHANNEL_ID, 
+                message_id=MOVIES[code]
+            )
+        except Exception as e:
+            bot.send_message(message.chat.id, "❌ Xato: Kinoni kanaldan topib bo'lmadi. Bot kanalda admin ekanligini tekshiring.")
     else:
         bot.send_message(message.chat.id, "❌ Bunday kod yo‘q")
 
-# ➕ KINO QO‘SHISH
+# ➕ KINO QO‘SHISH (Tugirlangan qism)
 @bot.message_handler(commands=['add'])
 def add_movie(message):
     if message.from_user.id != ADMIN_ID: return
@@ -135,10 +144,16 @@ def add_movie(message):
         return
 
     msg = message.reply_to_message
+    
+    # Agar xabar forward qilinmagan bo'lsa, xato beradi
+    if not msg.forward_from_message_id:
+        bot.send_message(message.chat.id, "❗ Xato: Kinoni kanaldan forward (uzatish) qilib, keyin unga reply qilib /add yozing!")
+        return
+
     try:
         code = str(max([int(x) for x in MOVIES.keys()] + [0]) + 1)
-        # Forward_from_message_id faqat kanaldan forward qilinganda ishlaydi
-        MOVIES[code] = msg.message_id 
+        # Kanaldagi haqiqiy xabar ID sini saqlaymiz
+        MOVIES[code] = msg.forward_from_message_id 
         save_movies()
         bot.send_message(message.chat.id, f"✅ Qo‘shildi\nKod: {code}")
     except Exception as e:
@@ -153,5 +168,5 @@ def stat(message):
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
     print("🤖 Bot ishlayapti...")
-    keep_alive()  # Veb serverni alohida oqimda yoqish
+    keep_alive()
     bot.infinity_polling()
