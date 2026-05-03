@@ -18,7 +18,7 @@ TOKEN = "8627886359:AAEWsjqTz4utPh4UjQFLAVKGRniEOnpTwrk"
 bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726
 
-REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu"]
+REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu","@ogirlangansamo"]
 
 # --- BAZA BILAN ISHLASH (SQLite) ---
 def init_db():
