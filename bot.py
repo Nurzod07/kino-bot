@@ -20,7 +20,7 @@ bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726
 
 # Majburiy obuna kanallari
-REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu", "@ogirlangansamo", "@piima_kitab"]
+REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu","@piima_kitab","@ogirlangansamo"]
 # Instagram manzili
 INSTAGRAM_URL = "https://www.instagram.com/yangi__tv?igsh=ZTI3YmR5MXVoemU5"
 
