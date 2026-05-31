@@ -16,7 +16,8 @@ def keep_alive():
     t.start()
 
 # --- ASOSIY SOZLAMALAR ---
-TOKEN = "8627886359:AAG4FHpR5tVq3PqL9SnJbJL9fNjaSk78Bcg"  # ⚠️ BotFather bergan tokenni shu yerga qo'ying!
+import os
+TOKEN = os.environ.get("BOT_TOKEN") # 👈 Tokenni kod ichiga yozmaymiz, Render'dan oladi!
 bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726  # ⚠️ Sizning ID raqamingiz
 
