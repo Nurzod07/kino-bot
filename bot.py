@@ -6,24 +6,26 @@ import time
 from flask import Flask
 from threading import Thread
 
-# --- VEB SERVER (RENDER UCHUN) ---
+# --- VEB SERVER (RENDER 24/7 UCHUN) ---
 app = Flask('')
 @app.route('/')
-def home(): return "Bot faol!"
+def home(): return "Bot faol va onlayn!"
 def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# --- SOZLAMALAR ---
-TOKEN = "8627886359:AAG4FHpR5tVq3PqL9SnJbJL9fNjaSk78Bcg" # ⚠️ BotFather bergan tokenni kiriting!
+# --- ASOSIY SOZLAMALAR ---
+TOKEN = "TOKEN_SHU_YERGA"  # ⚠️ BotFather bergan tokenni shu yerga qo'ying!
 bot = telebot.TeleBot(TOKEN)
-ADMIN_ID = 5633684726 # ⚠️ Sizning ID raqamingiz
+ADMIN_ID = 5633684726  # ⚠️ Sizning ID raqamingiz
 
+# Kanallar ro'yxati
 REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu", "@piima_kitab", "@ogirlangansamo"]
 INSTAGRAM_URL = "https://www.instagram.com/yangi__tv?igsh=ZTI3YmR5MXVoemU5"
+REKLAMA_KANAL_URL = "https://t.me/Arzon_reklama07"
 
-# --- MA'LUMOTLAR BAZASI ---
+# --- MA'LUMOTLAR BAZASI AMALLARI ---
 def init_db():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
@@ -77,6 +79,7 @@ def get_last_movie_code():
         conn.close()
     return 0
 
+# --- OBUNA TEKSHIRISH ---
 def check_subscriptions(user_id):
     if user_id == ADMIN_ID: return True
     for ch in REQUIRED_CHANNELS:
@@ -94,20 +97,24 @@ def get_subscription_keyboard():
     markup.add(types.InlineKeyboardButton(text="✅ Obunani tasdiqlash", callback_data="check_subs"))
     return markup
 
+# --- KLAVIATURALAR (TUGMALAR) ---
 def get_main_keyboard(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     if user_id == ADMIN_ID:
         markup.add("🔍 Kino qidirish", "📊 Statistika")
+        markup.add("✍️ Biz bilan aloqa", "📣 Reklama berish")
         markup.add("👑 Admin Panel")
     else:
         markup.add("🔍 Kino qidirish", "✍️ Biz bilan aloqa")
+        markup.add("📣 Reklama berish")
     return markup
 
+# --- KOMANDALARNI QABUL QILISH ---
 @bot.message_handler(commands=['start'])
 def start(message):
     add_user_to_db(message.from_user.id)
     if check_subscriptions(message.from_user.id):
-        bot.send_message(message.chat.id, "👋 Xush kelibsiz! Kino kodini yuboring:", reply_markup=get_main_keyboard(message.from_user.id))
+        bot.send_message(message.chat.id, "👋 Xush kelibsiz! Kino kodini yuboring yoki menyudan foydalaning:", reply_markup=get_main_keyboard(message.from_user.id))
     else:
         bot.send_message(message.chat.id, "⚠️ Botdan foydalanish uchun kanallarga a'zo bo'ling:", reply_markup=get_subscription_keyboard())
 
@@ -116,32 +123,24 @@ def check(call):
     if check_subscriptions(call.from_user.id):
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
         except: pass
-        bot.send_message(call.message.chat.id, "✅ Tasdiqlandi! Kino kodini yuboring:", reply_markup=get_main_keyboard(call.from_user.id))
+        bot.send_message(call.message.chat.id, "✅ Obuna tasdiqlandi! Kino kodini yuboring yoki menyudan foydalaning:", reply_markup=get_main_keyboard(call.from_user.id))
     else:
         bot.answer_callback_query(call.id, "❌ Kanallarga obuna bo'ling!", show_alert=True)
 
-# 🚀 AVTOMATIK KINO QO'SHISH TIZIMI (ADMIN SENZURASI)
-@bot.message_handler(content_types=['video', 'document', 'audio'])
-def auto_add_movie(message):
-    # Agar oddiy odam video tashlasa, bot qabul qilmaydi
-    if message.from_user.id != ADMIN_ID:
-        if not check_subscriptions(message.from_user.id):
-            bot.send_message(message.chat.id, "❌ Avval kanallarga obuna bo'ling!", reply_markup=get_subscription_keyboard())
-        return
-
-    # Agar admin video, fayl yoki audio yuborsa/forward qilsa - AVTOMATIK BAZAGA QO'SHADI
+# --- BAZAGA KINO QO'SHISH FUNKSIYASI (HAR QANDAY USULDA ISHLAYDI) ---
+def process_and_save_movie(message, msg_with_file):
     file_id = None
     content_type = None
-    caption = message.caption if message.caption else "Nomsiz kino"
+    caption = msg_with_file.caption if msg_with_file.caption else "Nomsiz kino"
 
-    if message.video:
-        file_id = message.video.file_id
+    if msg_with_file.video:
+        file_id = msg_with_file.video.file_id
         content_type = 'video'
-    elif message.document:
-        file_id = message.document.file_id
+    elif msg_with_file.document:
+        file_id = msg_with_file.document.file_id
         content_type = 'document'
-    elif message.audio:
-        file_id = message.audio.file_id
+    elif msg_with_file.audio:
+        file_id = msg_with_file.audio.file_id
         content_type = 'audio'
 
     if file_id:
@@ -156,16 +155,36 @@ def auto_add_movie(message):
             conn.close()
             bot.send_message(message.chat.id, f"✅ Kino bazaga muvaffaqiyatli saqlandi!\n\n🎬 Kino kodi: `{new_code}`\n🎥 Nomi: {caption}", parse_mode="Markdown")
         except Exception as e:
-            bot.send_message(message.chat.id, f"❌ Bazaga saqlashda xato yuz berdi: {e}")
+            bot.send_message(message.chat.id, f"❌ Bazaga yozishda xato: {e}")
+    else:
+        bot.send_message(message.chat.id, "❌ Bu xabarda video yoki fayl topilmadi!")
 
-# --- MATNLAR BILAN ISHLASH ---
+# 1-usul: /add buyrug'i orqali reply qilinganda
+@bot.message_handler(commands=['add'])
+def add_by_command(message):
+    if message.from_user.id != ADMIN_ID: return
+    if message.reply_to_message:
+        process_and_save_movie(message, message.reply_to_message)
+    else:
+        bot.send_message(message.chat.id, "❗ Kinoga (video/faylga) REPLY qilib /add deb yozing yoki videoni shunchaki forward qiling!")
+
+# 2-usul: Admin shunchaki video/fayl forward qilsa yoki yuklasa
+@bot.message_handler(content_types=['video', 'document', 'audio'])
+def add_by_forward(message):
+    if message.from_user.id == ADMIN_ID:
+        process_and_save_movie(message, message)
+    else:
+        if not check_subscriptions(message.from_user.id):
+            bot.send_message(message.chat.id, "❌ Avval kanallarga obuna bo'ling!", reply_markup=get_subscription_keyboard())
+
+# --- MATNLAR VA TUGMALAR BILAN ISHLASH ---
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     if not check_subscriptions(message.from_user.id): return
 
     text = message.text
-    
-    # Kod bo'yicha kino qidirish
+
+    # 1. Kod bo'yicha qidirish (Faqat raqam bo'lsa)
     if text.isdigit():
         conn = sqlite3.connect('bot_data.db')
         cursor = conn.cursor()
@@ -183,33 +202,64 @@ def handle_text(message):
                 elif c_type == 'audio':
                     bot.send_audio(message.chat.id, file_id, caption=f"🎬 Kod: {text}\n🎥 Nomi: {caption}")
             except: 
-                bot.send_message(message.chat.id, "❌ Fayl serverdan o'chirilgan yoki xatolik.")
+                bot.send_message(message.chat.id, "❌ Fayl o'chib ketgan yoki yuklashda xatolik.")
         else:
-            bot.send_message(message.chat.id, "❌ Bunday kodli kino topilmadi.")
+            bot.send_message(message.chat.id, "❌ Bunday kodli kino topilmadi. Qaytadan tekshirib ko'ring.")
         return
 
-    # Admin amallari
-    if text == "📊 Statistika" and message.from_user.id == ADMIN_ID:
+    # 2. Tugmalar shartlari
+    if text == "🔍 Kino qidirish":
+        bot.send_message(message.chat.id, "🔢 Kino kodini yuboring:")
+
+    elif text == "✍️ Biz bilan aloqa":
+        msg = bot.send_message(message.chat.id, "✍️ Savol yoki taklifingizni yozib qoldiring. Admin tez orada javob beradi:")
+        bot.register_next_step_handler(msg, forward_to_admin)
+
+    elif text == "📣 Reklama berish":
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(text="📈 Arzon Reklama Kanali", url=REKLAMA_KANAL_URL))
+        bot.send_message(message.chat.id, "🏷️ Bizning kanallarga reklama berish shartlari va narxlari bilan tanishish uchun quyidagi kanalga o'ting:", reply_markup=markup)
+
+    elif text == "📊 Statistika" and message.from_user.id == ADMIN_ID:
         bot.send_message(message.chat.id, f"📊 BOT STATISTIKASI:\n\n👥 Foydalanuvchilar: {get_users_count()} ta\n🎬 Kinolar: {get_movies_count()} ta")
 
     elif text == "👑 Admin Panel" and message.from_user.id == ADMIN_ID:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("📢 Reklama Tarqatish", "🔙 Orqaga")
-        bot.send_message(message.chat.id, "👑 Admin Panel:", reply_markup=markup)
+        bot.send_message(message.chat.id, "👑 Admin Panelga xush kelibsiz:", reply_markup=markup)
 
     elif text == "📢 Reklama Tarqatish" and message.from_user.id == ADMIN_ID:
-        msg = bot.send_message(message.chat.id, "📢 Reklama postini yuboring:")
+        msg = bot.send_message(message.chat.id, "📢 Reklama postini (matn, rasm yoki video) yuboring:")
         bot.register_next_step_handler(msg, send_reklama)
         
     elif text == "🔙 Orqaga":
-        bot.send_message(message.chat.id, "Menyu:", reply_markup=get_main_keyboard(message.from_user.id))
+        bot.send_message(message.chat.id, "Bosh menyu:", reply_markup=get_main_keyboard(message.from_user.id))
 
+# --- BIZ BILAN ALOQA FUNKSIYASI ---
+def forward_to_admin(message):
+    if message.text == "🔙 Orqaga" or message.text in ["🔍 Kino qidirish", "✍️ Biz bilan aloqa", "📣 Reklama berish"]:
+        bot.send_message(message.chat.id, "Bekor qilindi.", reply_markup=get_main_keyboard(message.from_user.id))
+        return
+    try:
+        bot.send_message(ADMIN_ID, f"📩 #Xabar\n👤 Kimdan: {message.from_user.first_name} (ID: {message.from_user.id})\n\n✍️ Xabar matni:\n{message.text}")
+        bot.send_message(message.chat.id, "✅ Xabaringiz muvaffaqiyatli yetkazildi. Tez orada javob olasiz!", reply_markup=get_main_keyboard(message.from_user.id))
+    except:
+        bot.send_message(message.chat.id, "❌ Xabarni yetkazishda xatolik yuz berdi.", reply_markup=get_main_keyboard(message.from_user.id))
+
+# --- REKLAMA TARQATISH ---
 def send_reklama(message):
+    if message.text == "🔙 Orqaga":
+        bot.send_message(message.chat.id, "Admin panelga qaytildi.", reply_markup=get_main_keyboard(ADMIN_ID))
+        return
     users = get_all_users()
+    bot.send_message(message.chat.id, f"🚀 {len(users)} ta foydalanuvchiga reklama yuborish boshlandi...")
+    count = 0
     for u_id in users:
-        try: bot.copy_message(chat_id=u_id, from_chat_id=message.chat.id, message_id=message.message_id)
+        try: 
+            bot.copy_message(chat_id=u_id, from_chat_id=message.chat.id, message_id=message.message_id)
+            count += 1
         except: pass
-    bot.send_message(message.chat.id, "✅ Reklama tarqatildi!", reply_markup=get_main_keyboard(ADMIN_ID))
+    bot.send_message(message.chat.id, f"✅ Reklama tarqatish yakunlandi!\n👥 Yetkazildi: {count} ta foydalanuvchiga.", reply_markup=get_main_keyboard(ADMIN_ID))
 
 if __name__ == "__main__":
     init_db()
