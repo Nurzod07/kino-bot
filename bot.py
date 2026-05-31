@@ -3,14 +3,13 @@ from telebot import types
 import sqlite3
 import os
 import time
-import re
 from flask import Flask
 from threading import Thread
 
 # --- VEB SERVER (RENDER UCHUN) ---
 app = Flask('')
 @app.route('/')
-def home(): return "Bot 24/7 rejimda muvaffaqiyatli ishlamoqda!"
+def home(): return "Bot 24/7 Premium rejimda muvaffaqiyatli ishlamoqda!"
 def run(): app.run(host='0.0.0.0', port=8080)
 def keep_alive():
     t = Thread(target=run)
@@ -18,18 +17,17 @@ def keep_alive():
 
 # --- SOZLAMALAR ---
 # ⚠️ DIQQAT: BotFather bergan yangi xavfsiz tokeningizni kiriting!
-TOKEN ="8627886359:AAG4FHpR5tVq3PqL9SnJbJL9fNjaSk78Bcg" 
+TOKEN = "8627886359:AAG4FHpR5tVq3PqL9SnJbJL9fNjaSk78Bcg" 
 bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726
 
 REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piimaenglish_edu", "@piima_kitab", "@ogirlangansamo"]
 INSTAGRAM_URL = "https://www.instagram.com/yangi__tv?igsh=ZTI3YmR5MXVoemU5"
 
-# --- MA'LUMOTLAR BAZASI (KUCHAYTIRILGAN USUL) ---
+# --- MA'LUMOTLAR BAZASI ---
 def init_db():
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    # caption ustuni qo'shildi - nomi bo'yicha qidirish uchun
     cursor.execute('''CREATE TABLE IF NOT EXISTS movies 
                       (code TEXT PRIMARY KEY, file_id TEXT, content_type TEXT, caption TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS users 
@@ -101,7 +99,6 @@ def get_movie_from_db(code):
 def search_movies_by_name(query):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
-    # Nomi bo'yicha qidirish (Katta-kichik harflarni farqlamaydi)
     cursor.execute("SELECT code, caption FROM movies WHERE caption LIKE ?", (f"%{query}%",))
     results = cursor.fetchall()
     conn.close()
@@ -109,7 +106,7 @@ def search_movies_by_name(query):
 
 # --- OBUNA TEKSHIRUV ---
 def check_subscriptions(user_id):
-    if user_id == ADMIN_ID: return True # Admin kanallarga a'zo bo'lishi shart emas
+    if user_id == ADMIN_ID: return True
     for ch in REQUIRED_CHANNELS:
         try:
             status = bot.get_chat_member(ch, user_id).status
@@ -127,15 +124,21 @@ def get_subscription_keyboard():
     markup.add(types.InlineKeyboardButton(text="✅ Obunani tasdiqlash", callback_data="check_subs"))
     return markup
 
-# --- BUYRUQLAR VA KLAVIATURA ---
+# --- DINAMIK MENYU (ADMIN VA FOYDALANUVCHI AJRATILDI) ---
 def get_main_keyboard(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    markup.add("🔍 Kino qidirish", "📊 Statistika")
-    markup.add("✍️ Biz bilan aloqa")
     if user_id == ADMIN_ID:
+        # Admin uchun xavfsiz va to'liq maxfiy menyu (Statistika faqat shu yerda)
+        markup.add("🔍 Kino qidirish", "📊 Statistika")
+        markup.add("✍️ Biz bilan aloqa (Xabarlar)")
         markup.add("👑 Admin Panel")
+    else:
+        # Oddiy foydalanuvchilar menyusi (Statistika umuman ko'rinmaydi)
+        markup.add("🔍 Kino qidirish")
+        markup.add("✍️ Biz bilan aloqa")
     return markup
 
+# --- KOMANDALAR ---
 @bot.message_handler(commands=['start'])
 def start(message):
     add_user_to_db(message.from_user.id)
@@ -167,7 +170,7 @@ def check(call):
     else:
         bot.answer_callback_query(call.id, "❌ Siz hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
 
-# --- MATNLAR BILAN ISHLASH ---
+# --- MATNLAR BILAN ISHLASH VA MENYU NAZORATI ---
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     if not check_subscriptions(message.from_user.id):
@@ -176,7 +179,7 @@ def handle_text(message):
 
     text = message.text
 
-    # 1. Kino kodini tekshirish (faqat raqam bo'lsa)
+    # 1. Kino kodini avtomatik tekshirish
     if text.isdigit():
         movie_data = get_movie_from_db(text)
         if movie_data:
@@ -195,31 +198,48 @@ def handle_text(message):
             bot.send_message(message.chat.id, "❌ Bunday kodli kino topilmadi. Qaytadan tekshirib ko'ring.")
         return
 
-    # 2. Menyularni boshqarish
+    # 2. Umumiy menyu amallari
     if text == "🔍 Kino qidirish":
         msg = bot.send_message(message.chat.id, "✍️ Qidirayotgan kinongiz nomini yoki kalit so'zni yuboring:")
         bot.register_next_step_handler(msg, process_search)
     
-    elif text == "📊 Statistika":
-        u_count = get_users_count()
-        m_count = get_movies_count()
-        bot.send_message(message.chat.id, f"📊 BOT STATISTIKASI:\n\n👥 Foydalanuvchilar: {u_count} ta\n🎬 Kinolar bazasi: {m_count} ta\n⏱️ Tizim holati: Onlayn (24/7)")
-    
     elif text == "✍️ Biz bilan aloqa":
         msg = bot.send_message(message.chat.id, "✍️ Adminga yubormoqchi bo'lgan xabaringiz yoki taklifingizni yozing:")
         bot.register_next_step_handler(msg, process_feedback)
-        
-    elif text == "👑 Admin Panel" and message.from_user.id == ADMIN_ID:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-        markup.add("📢 Reklama Tarqatish", "🔙 Asosiy Menyuga Qaytish")
-        bot.send_message(message.chat.id, "👑 Admin boshqaruv paneli:", reply_markup=markup)
-        
-    elif text == "📢 Reklama Tarqatish" and message.from_user.id == ADMIN_ID:
-        msg = bot.send_message(message.chat.id, "📢 Reklama xabarini (matn, rasm, video yoki forward) yuboring:")
-        bot.register_next_step_handler(msg, send_reklama_to_all)
-        
-    elif text == "🔙 Asosiy Menyuga Qaytish":
-        bot.send_message(message.chat.id, "🔙 Asosiy menyuga qaytdingiz.", reply_markup=get_main_keyboard(message.from_user.id))
+
+    # 🔒 FAOL XAVFSIZLIK: STATISTIKA FAQAT ADMIN UCHUN ISHLAYDI
+    elif text == "📊 Statistika":
+        if message.from_user.id == ADMIN_ID:
+            u_count = get_users_count()
+            m_count = get_movies_count()
+            bot.send_message(
+                message.chat.id, 
+                f"📊 *MUKAMMAL BOT STATISTIKASI:*\n\n"
+                f"👥 Jami foydalanuvchilar: `{u_count}` ta\n"
+                f"🎬 Saqlangan kinolar soni: `{m_count}` ta\n"
+                f"⏱️ Tizim serveri holati: `Onlayn (24/7 Ultra)`",
+                parse_mode="Markdown"
+            )
+        else:
+            # Oddiy foydalanuvchi qandaydir yo'l bilan buni yozsa ham baza berkitiladi
+            bot.send_message(message.chat.id, "⚠️ Kechirasiz, ushbu sahifa faqat bot asoschisi uchun xizmat qiladi!")
+
+    # 👑 ADMIN PANEL VA FUNKSIYALARI
+    elif message.from_user.id == ADMIN_ID:
+        if text == "👑 Admin Panel":
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
+            markup.add("📢 Reklama Tarqatish", "🔙 Asosiy Menyuga Qaytish")
+            bot.send_message(message.chat.id, "👑 Admin boshqaruv paneli:", reply_markup=markup)
+            
+        elif text == "📢 Reklama Tarqatish":
+            msg = bot.send_message(message.chat.id, "📢 Reklama xabarini (matn, rasm, video yoki tayyor forward) yuboring:")
+            bot.register_next_step_handler(msg, send_reklama_to_all)
+            
+        elif text == "✍️ Biz bilan aloqa (Xabarlar)":
+            bot.send_message(message.chat.id, "ℹ️ Bu bo'lim orqali foydalanuvchilar sizga yuborgan takliflarni shaxsiy profilingizda qabul qilasiz.")
+            
+        elif text == "🔙 Asosiy Menyuga Qaytish":
+            bot.send_message(message.chat.id, "🔙 Asosiy menyuga qaytdingiz.", reply_markup=get_main_keyboard(message.from_user.id))
 
 # --- KINO QIDIRISH ALGORITMI ---
 def process_search(message):
@@ -230,20 +250,31 @@ def process_search(message):
     
     results = search_movies_by_name(query)
     if results:
-        text = f"🔍 '{query}' bo'yicha topilgan kinolar:\n\n"
+        text = f"🔍 *'{query}' bo'yicha topilgan kinolar ro'yxati:*\n\n"
         for code, caption in results:
-            short_caption = caption[:40] + "..." if len(caption) > 40 else caption
+            short_caption = caption[:35] + "..." if len(caption) > 35 else caption
             text += f"🔢 Kod: `{code}` — {short_caption}\n"
-        text += "\n🍿 Kinoni ko'rish uchun uning kodini botga xabar ko'rinishida yuboring."
+        text += "\n🍿 Kinoni tomosha qilish uchun uning kodini botga raqam shaklida yuboring."
         bot.send_message(message.chat.id, text, parse_mode="Markdown")
     else:
-        bot.send_message(message.chat.id, f"🤷‍♂️ Afsuski, '{query}' bo'yicha hech qanday kino topilmadi.")
+        bot.send_message(message.chat.id, f"🤷‍♂️ Afsuski, bazamizdan '{query}' bo'yicha hech qanday kino topilmadi.")
 
-# --- BIZ BILAN ALOQA ALGORITMI ---
+# --- FOYDALANUVCHIDAN ADMINGA ALOQA TIZIMI ---
 def process_feedback(message):
     user_text = message.text
-    bot.send_message(ADMIN_ID, f"📩 #Aloqa\n\n👤 Foydalanuvchi: {message.from_user.first_name} (ID: {message.from_user.id})\n💬 Xabar: {user_text}")
-    bot.send_message(message.chat.id, "✅ Xabaringiz adminga yetkazildi. Tez orada javob qaytaramiz!")
+    if user_text:
+        try:
+            bot.send_message(
+                ADMIN_ID, 
+                f"📩 *YANGI MUROJAAT #Aloqa*\n\n"
+                f"👤 *Kimdan:* {message.from_user.first_name}\n"
+                f"🆔 *User ID:* `{message.from_user.id}`\n"
+                f"💬 *Xabar matni:* {user_text}",
+                parse_mode="Markdown"
+            )
+            bot.send_message(message.chat.id, "✅ Murojaatingiz adminga muvaffaqiyatli yetkazildi. Tez orada javob olasiz!")
+        except:
+            bot.send_message(message.chat.id, "❌ Xabarni yetkazishda xatolik yuz berdi. Keyinroq qayta urinib ko'ring.")
 
 # --- MULTIMEDIA BILAN ISHLASH (/add komandasi uchun) ---
 @bot.message_handler(commands=['add'])
@@ -273,38 +304,39 @@ def add_movie(message):
             last_code = get_last_movie_code()
             new_code = str(last_code + 1)
             add_movie_to_db(new_code, file_id, content_type, caption)
-            bot.send_message(message.chat.id, f"✅ Baza muvaffaqiyatli saqlandi!\n🎬 Kino kodi: {new_code}\n🎥 Nomi: {caption}")
+            bot.send_message(message.chat.id, f"✅ Baza muvaffaqiyatli saqlandi!\n🎬 Kino kodi: `{new_code}`\n🎥 Nomi: {caption}", parse_mode="Markdown")
         except Exception as e:
             bot.send_message(message.chat.id, f"Xato: {e}")
     else:
         bot.send_message(message.chat.id, "❗ Faqat video, audio yoki fayl turidagi xabarlarni saqlash mumkin.")
 
-# --- MUKAMMAL REKLAMA TARQATISH PANELI ---
+# --- INTELLEKTUAL REKLAMA TARQATISH PANELI ---
 def send_reklama_to_all(message):
     users = get_all_users()
     success = 0
     failed = 0
     
-    status_msg = bot.send_message(message.chat.id, f"⏳ Reklama tarqatilmoqda (Jami: {len(users)} ta manzil)...")
+    status_msg = bot.send_message(message.chat.id, f"⏳ Reklama tarqatilmoqda (Jami: {len(users)} ta faol manzil)...")
     
     for u_id in users:
         try:
             bot.copy_message(chat_id=u_id, from_chat_id=message.chat.id, message_id=message.message_id)
             success += 1
-            time.sleep(0.05) # Telegram blokiga tushmaslik uchun cheklov
+            time.sleep(0.05) 
         except:
             failed += 1
             
     bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=status_msg.message_id,
-        text=f"📢 Reklama yakunlandi!\n\n✅ Yetkazildi: {success} ta\n❌ Bloklaganlar: {failed} ta",
+        text=f"📢 *REKLAMA TARQATISH YAKUNLANDI:*\n\n✅ Muvaffaqiyatli yetkazildi: `{success}` ta foydalanuvchiga\n❌ Bloklaganlar/O'chib ketganlar: `{failed}` ta",
+        parse_mode="Markdown",
         reply_markup=get_main_keyboard(ADMIN_ID)
     )
 
 # --- BOTNI ISHGA TUSHIRISH ---
 if __name__ == "__main__":
     init_db()
-    print("🤖 Super-Bot 100% quvvat bilan ishga tushdi...")
+    print("🤖 Premium Super-Bot 100% quvvat bilan ishga tushdi...")
     keep_alive()
     bot.infinity_polling()
