@@ -22,7 +22,7 @@ bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726  # ⚠️ Sizning ID raqamingiz
 
 # Kanallar ro'yxati
-REQUIRED_CHANNELS = ["@telefon_reklama_xizmati", "@piima_kitab", "@piimaenglish_edu", "@ogirlangansamo"]
+REQUIRED_CHANNELS = ["@piima_kitab", "@piimaenglish_edu"]
 INSTAGRAM_URL = "https://www.instagram.com/yangi__tv?igsh=ZTI3YmR5MXVoemU5"
 REKLAMA_KANAL_URL = "https://t.me/Arzon_reklama07"
 
