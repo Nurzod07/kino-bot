@@ -16,13 +16,10 @@ def keep_alive():
     t.start()
 
 # --- ASOSIY SOZLAMALAR ---
-import os
-TOKEN = os.environ.get("BOT_TOKEN") # 👈 Tokenni kod ichiga yozmaymiz, Render'dan oladi!
+TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 ADMIN_ID = 5633684726  # ⚠️ Sizning ID raqamingiz
 
-# Kanallar ro'yxati
-REQUIRED_CHANNELS = []
 INSTAGRAM_URL = "https://www.instagram.com/yangi__tv?igsh=ZTI3YmR5MXVoemU5"
 REKLAMA_KANAL_URL = "https://t.me/Arzon_reklama07"
 
@@ -34,8 +31,40 @@ def init_db():
                       (code TEXT PRIMARY KEY, file_id TEXT, content_type TEXT, caption TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS users 
                       (user_id INTEGER PRIMARY KEY, join_date TEXT)''')
+    # Yangi: Kanallar uchun jadval
+    cursor.execute('''CREATE TABLE IF NOT EXISTS channels 
+                      (channel_username TEXT PRIMARY KEY)''')
     conn.commit()
     conn.close()
+
+# Kanallar bilan ishlash funksiyalari
+def add_channel_db(username):
+    username = username.strip()
+    if not username.startswith('@'):
+        username = '@' + username
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO channels (channel_username) VALUES (?)", (username,))
+    conn.commit()
+    conn.close()
+
+def remove_channel_db(username):
+    username = username.strip()
+    if not username.startswith('@'):
+        username = '@' + username
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM channels WHERE channel_username = ?", (username,))
+    conn.commit()
+    conn.close()
+
+def get_required_channels():
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT channel_username FROM channels")
+    channels = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return channels
 
 def add_user_to_db(user_id):
     conn = sqlite3.connect('bot_data.db')
@@ -83,7 +112,8 @@ def get_last_movie_code():
 # --- OBUNA TEKSHIRISH ---
 def check_subscriptions(user_id):
     if user_id == ADMIN_ID: return True
-    for ch in REQUIRED_CHANNELS:
+    channels = get_required_channels()
+    for ch in channels:
         try:
             status = bot.get_chat_member(ch, user_id).status
             if status not in ["member", "administrator", "creator"]: return False
@@ -92,7 +122,8 @@ def check_subscriptions(user_id):
 
 def get_subscription_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    for i, ch in enumerate(REQUIRED_CHANNELS, 1):
+    channels = get_required_channels()
+    for i, ch in enumerate(channels, 1):
         markup.add(types.InlineKeyboardButton(text=f"📢 {i}-kanalga obuna bo'lish", url=f"https://t.me/{ch[1:]}"))
     markup.add(types.InlineKeyboardButton(text="📸 Instagram sahifamiz", url=INSTAGRAM_URL))
     markup.add(types.InlineKeyboardButton(text="✅ Obunani tasdiqlash", callback_data="check_subs"))
@@ -109,6 +140,27 @@ def get_main_keyboard(user_id):
         markup.add("🔍 Kino qidirish", "✍️ Biz bilan aloqa")
         markup.add("📣 Reklama berish")
     return markup
+
+# --- ADMIN KANAL BOSHQARUV BUYRUQLARI ---
+@bot.message_handler(commands=['add_channel'])
+def add_ch_cmd(message):
+    if message.from_user.id != ADMIN_ID: return
+    try:
+        ch_name = message.text.split()[1]
+        add_channel_db(ch_name)
+        bot.send_message(message.chat.id, f"✅ `{ch_name}` kanali muvaffaqiyatli qo'shildi!", parse_mode="Markdown")
+    except:
+        bot.send_message(message.chat.id, "⚠️ Noto'g'ri format. Ishlatish: `/add_channel @kanal_useri`", parse_mode="Markdown")
+
+@bot.message_handler(commands=['del_channel'])
+def del_ch_cmd(message):
+    if message.from_user.id != ADMIN_ID: return
+    try:
+        ch_name = message.text.split()[1]
+        remove_channel_db(ch_name)
+        bot.send_message(message.chat.id, f"🗑 `{ch_name}` kanali olib tashlandi!", parse_mode="Markdown")
+    except:
+        bot.send_message(message.chat.id, "⚠️ Noto'g'ri format. Ishlatish: `/del_channel @kanal_useri`", parse_mode="Markdown")
 
 # --- KOMANDALARNI QABUL QILISH ---
 @bot.message_handler(commands=['start'])
@@ -128,7 +180,7 @@ def check(call):
     else:
         bot.answer_callback_query(call.id, "❌ Kanallarga obuna bo'ling!", show_alert=True)
 
-# --- BAZAGA KINO QO'SHISH FUNKSIYASI (HAR QANDAY USULDA ISHLAYDI) ---
+# --- BAZAGA KINO QO'SHISH FUNKSIYASI ---
 def process_and_save_movie(message, msg_with_file):
     file_id = None
     content_type = None
@@ -156,11 +208,10 @@ def process_and_save_movie(message, msg_with_file):
             conn.close()
             bot.send_message(message.chat.id, f"✅ Kino bazaga muvaffaqiyatli saqlandi!\n\n🎬 Kino kodi: `{new_code}`\n🎥 Nomi: {caption}", parse_mode="Markdown")
         except Exception as e:
-            bot.send_message(message.chat.id, f"❌ Bazaga yozishda xato: {e}")
+            bot.send_message(message.chat.id, f"❌ Bazaga yozishda xatolik: {e}")
     else:
         bot.send_message(message.chat.id, "❌ Bu xabarda video yoki fayl topilmadi!")
 
-# 1-usul: /add buyrug'i orqali reply qilinganda
 @bot.message_handler(commands=['add'])
 def add_by_command(message):
     if message.from_user.id != ADMIN_ID: return
@@ -169,7 +220,6 @@ def add_by_command(message):
     else:
         bot.send_message(message.chat.id, "❗ Kinoga (video/faylga) REPLY qilib /add deb yozing yoki videoni shunchaki forward qiling!")
 
-# 2-usul: Admin shunchaki video/fayl forward qilsa yoki yuklasa
 @bot.message_handler(content_types=['video', 'document', 'audio'])
 def add_by_forward(message):
     if message.from_user.id == ADMIN_ID:
@@ -185,7 +235,6 @@ def handle_text(message):
 
     text = message.text
 
-    # 1. Kod bo'yicha qidirish (Faqat raqam bo'lsa)
     if text.isdigit():
         conn = sqlite3.connect('bot_data.db')
         cursor = conn.cursor()
@@ -208,7 +257,6 @@ def handle_text(message):
             bot.send_message(message.chat.id, "❌ Bunday kodli kino topilmadi. Qaytadan tekshirib ko'ring.")
         return
 
-    # 2. Tugmalar shartlari
     if text == "🔍 Kino qidirish":
         bot.send_message(message.chat.id, "🔢 Kino kodini yuboring:")
 
@@ -226,8 +274,18 @@ def handle_text(message):
 
     elif text == "👑 Admin Panel" and message.from_user.id == ADMIN_ID:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("📢 Reklama Tarqatish", "🔙 Orqaga")
+        markup.add("📢 Reklama Tarqatish", "📋 Kanallar Ro'yxati")
+        markup.add("🔙 Orqaga")
         bot.send_message(message.chat.id, "👑 Admin Panelga xush kelibsiz:", reply_markup=markup)
+
+    elif text == "📋 Kanallar Ro'yxati" and message.from_user.id == ADMIN_ID:
+        channels = get_required_channels()
+        if channels:
+            ch_list = "\n".join([f"{i+1}. {ch}" for i, ch in enumerate(channels)])
+            msg_text = f"📋 **Ulanishi majburiy kanallar:**\n\n{ch_list}\n\n➕ *Kanal qo'shish:* `/add_channel @kanal_useri`\n➖ *Kanalni o'chirish:* `/del_channel @kanal_useri`"
+        else:
+            msg_text = "📋 Hozircha hech qanday kanal qo'shilmagan.\n\n➕ *Kanal qo'shish:* `/add_channel @kanal_useri`"
+        bot.send_message(message.chat.id, msg_text, parse_mode="Markdown")
 
     elif text == "📢 Reklama Tarqatish" and message.from_user.id == ADMIN_ID:
         msg = bot.send_message(message.chat.id, "📢 Reklama postini (matn, rasm yoki video) yuboring:")
